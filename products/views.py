@@ -2,13 +2,14 @@ from django.shortcuts import render, redirect, reverse, get_object_or_404
 from django.contrib import messages
 from django.db.models import Q
 from django.db.models.functions import Lower
+
 from .models import Product, Category
+from .forms import ProductForm
 
 # Create your views here.
 
-
 def all_products(request):
-    """ A view to show individual product details """
+    """ A view to show all products, including sorting and search queries """
 
     products = Product.objects.all()
     query = None
@@ -25,31 +26,24 @@ def all_products(request):
                 products = products.annotate(lower_name=Lower('name'))
             if sortkey == 'category':
                 sortkey = 'category__name'
-
             if 'direction' in request.GET:
                 direction = request.GET['direction']
                 if direction == 'desc':
                     sortkey = f'-{sortkey}'
             products = products.order_by(sortkey)
-
-        # Filter on the nav bar for categories
+            
         if 'category' in request.GET:
             categories = request.GET['category'].split(',')
             products = products.filter(category__name__in=categories)
             categories = Category.objects.filter(name__in=categories)
 
-        # Search functionality
         if 'q' in request.GET:
             query = request.GET['q']
             if not query:
-                messages.error(
-                    request, "You didn't enter any search criteria!")
+                messages.error(request, "You didn't enter any search criteria!")
                 return redirect(reverse('products'))
-
-            queries = Q(name__icontains=query) | Q(
-                description__icontains=query)
-            # i infront of contains makes the queries case insensitive
-            # Note the double underscore!
+            
+            queries = Q(name__icontains=query) | Q(description__icontains=query)
             products = products.filter(queries)
 
     current_sorting = f'{sort}_{direction}'
@@ -58,15 +52,14 @@ def all_products(request):
         'products': products,
         'search_term': query,
         'current_categories': categories,
-        'current_sorting': current_sorting
+        'current_sorting': current_sorting,
     }
 
     return render(request, 'products/products.html', context)
-    # need a 'context' to send some things back to the template
 
 
 def product_detail(request, product_id):
-    """ A view to show all products, including sorting and search queries """
+    """ A view to show individual product details """
 
     product = get_object_or_404(Product, pk=product_id)
 
@@ -75,4 +68,14 @@ def product_detail(request, product_id):
     }
 
     return render(request, 'products/product_detail.html', context)
-    # need a 'context' to send some things back to the template
+
+
+def add_product(request):
+    """ Add a product to the store """
+    form = ProductForm()
+    template = 'products/add_product.html'
+    context = {
+        'form': form,
+    }
+
+    return render(request, template, context)
